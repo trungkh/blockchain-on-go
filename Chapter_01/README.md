@@ -15,9 +15,7 @@ Each transaction is hashed and then paired repeatedly until the last single hash
 
 Let us first create a simple block.
 
-```
-# [Block.go](Block.go)
-```
+[Block.go](Block.go)
 
 The block has all the properties as we described previously. A big part of Blockchain is the hashing algorithm. We are using the same hashing algorithm that Bitcoin uses, ie SHA256.
 
@@ -27,9 +25,7 @@ Q1. What is the unique identifier in the Block? How do we ensure that its unique
 
 Now lets create a simple Transaction object.
 
-```
-# [Transaction.go](Transaction.go)
-```
+[Transaction.go](Transaction.go)
 
 Each Transaction records who is sending how much to who. This is a simple Account Based Transaction Model that scans through the chain to get the balance.
 
@@ -39,10 +35,7 @@ Q2. Do you see a problem with the Transaction class?
 
 Now, the actual Blockchain class.
 
-```
-# [Blockchain.go](Transaction.go)
-
-```
+[Blockchain.go](Transaction.go)
 
 The actual implementation of the chain is quite simple. Its basically an incremental insert-only array of the Blocks object.
 
@@ -52,10 +45,7 @@ Q4. What is the problem with the getAddressBalance function in the Blockchain cl
 
 Its time to add 4 more api endpoints to main.js, ie createTransaction, createBlock, getBlockchain and getBalance.
 
-```
-# [Transaction.go](main.go)
-
-```
+[Transaction.go](main.go)
 
 We broadcast to different nodes when new transactions and blocks are added. In this way, all the nodes are synced. Querying any nodes will return the same results.
 
