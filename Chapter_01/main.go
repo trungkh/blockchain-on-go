@@ -4,67 +4,59 @@ import (
     "encoding/json"
     "log"
     "net/http"
-    "net/url"
     "os"
     "os/signal"
     "strconv"
     "time"
 
     //"github.com/davecgh/go-spew/spew"
-    "github.com/gorilla/websocket"
     "github.com/gorilla/mux"
     "github.com/joho/godotenv"
 )
 
 var blockchain = Blockchain{}
-// Create channel to receive messages from all connections
-var upMessages = make(chan []byte)
-var downMessages = make(chan []byte)
-var serverConnected bool = false
-var clientConnected bool = false
-
-func serverConnectionSwitch(status bool) {
-    serverConnected = status
-}
-
-func clientConnectionSwitch(status bool) {
-    clientConnected = status
-}
+var p2pServer = P2pServer{}
+var p2pClient = P2pClient{}
 
 func main() {
     interrupt := make(chan os.Signal, 1)
     signal.Notify(interrupt, os.Interrupt)
-    done := make(chan struct{})
 
     if err := godotenv.Load(); err != nil {
         log.Fatal(err)
     }
-    defer close(upMessages)
-    defer close(downMessages)
 
     blockchain.Init()
-
     go runWebService()
-    go initP2PServer()
 
-    peers := os.Getenv("PEERS")
+    go p2pServer.init(&p2pClient)
+
+    peers := os.Getenv("PEER")
     if peers != "" {
-        go initP2PClients(peers, interrupt, done)
-        for {
-            select {
-            case <-done:
+        go p2pClient.init(peers, &p2pServer)
+    }
+    for {
+        select {
+        case <-interrupt:
+            log.Println("Interrupted!")
+            if !p2pClient.getConnection() && !p2pServer.getConnection() {
+                return
+            }
+            if p2pClient.getConnection() {
+                close(p2pClient.messages)
+            }
+            if p2pServer.getConnection() {
+                close(p2pServer.messages)
+            }
+        case <-p2pClient.done:
+            if !p2pServer.getConnection() {
+                return
+            }
+        case <-p2pServer.done:
+            if !p2pClient.getConnection() {
                 return
             }
         }
-    } else {
-        for {
-            select {
-            case <-interrupt:
-                log.Println("Interrupted!")
-                close(done)
-                return
-            }
-        } 
     }
 }
 
@@ -146,11 +138,11 @@ func handleCreateBlock(w http.ResponseWriter, r *http.Request) {
         }
         log.Println("Created Block: ", string(bytes))
 
-        if serverConnected {
-            upMessages <- bytes
+        if p2pServer.getConnection() {
+            p2pServer.messages <- bytes
         }
-        if clientConnected {
-            downMessages <- bytes
+        if p2pClient.getConnection() {
+            p2pClient.messages <- bytes
         }
 
         w.WriteHeader(http.StatusCreated)
@@ -177,157 +169,30 @@ func handleGetBalance(w http.ResponseWriter, r *http.Request) {
     w.Write([]byte(params["address"] + " balance is: " + balance + "\n"))
 }
 
-// web socket server
-func initP2PServer() {
-    http.HandleFunc("/", handleMessage)
-
-    wsPort := os.Getenv("P2P_BASE_PORT")
-    peerNo := os.Getenv("PEER_NO")
-    if peerNo != "" {
-        w, err := strconv.Atoi(wsPort)
+func nodeSync(messages chan []byte) {
+    for _, block := range blockchain.getBlockchain()[1:] {
+        message, err := json.MarshalIndent(block, "", "  ")
         if err != nil {
-            log.Fatal(err)
-        }
-        p, err := strconv.Atoi(peerNo)
-        if err != nil {
-            log.Fatal(err)
-        }
-        wsPort = strconv.Itoa(w + p)
-    }
-    //s := &http.Server{
-    //	Addr:           ":" + wsPort
-    //}
-
-    log.Println("Listening websocket p2p on port: ", wsPort)
-    if err := http.ListenAndServe(/*addr*/":" + wsPort, nil); err != nil {
-        log.Fatal(err)
-    }
-}
-
-func handleMessage(w http.ResponseWriter, r *http.Request) {
-    serverConn, err := websocket.Upgrade(w, r, w.Header(), 1024, 1024)
-    if err != nil {
-        log.Println("upgrade: ", err)
-        return
-    }
-    defer serverConn.Close()
-    defer clientConnectionSwitch(false)
-
-    log.Println("Connnection established...")
-    clientConnectionSwitch(true)
-
-    go func() {
-        for _, block := range blockchain.getBlockchain()[1:] {
-            message, err := json.MarshalIndent(block, "", "  ")
-            if err != nil {
-                log.Println("parsing: ", err)
-                return
-            }
-            err = serverConn.WriteMessage(websocket.TextMessage, message)
-            if err != nil {
-                log.Println("server write: ", err)
-                return
-            }
-        }
-
-        for {
-            select {
-            case message := <- downMessages:
-                err = serverConn.WriteMessage(websocket.TextMessage, message)
-                if err != nil {
-                    log.Println("server write: ", err)
-                    break
-                }
-            }
-        }
-    }()
-
-    for {
-        _, message, err := serverConn.ReadMessage()
-        if err != nil {
-            log.Println("server read: ", err)
-            break
-        }
-        log.Println("Syncing Block: ", string(message))
-        
-        var result map[string]interface{}
-        json.Unmarshal(message, &result)
-        
-        if result["previousHash"] != nil {
-            currentBlock := blockchain.getBlock(blockchain.getBlockHeight())
-            if currentBlock.HashedStr == result["previousHash"] {
-                var parsedBlock Block
-                json.Unmarshal(message, &parsedBlock)
-                blockchain.addBlock(parsedBlock)
-                if serverConnected {
-                    upMessages <- message
-                }
-            }
-        }
-    }
-}
-
-// web socket client
-func initP2PClients(peers string, interrupt chan os.Signal, done chan struct{}) {
-    peer, err := url.Parse(peers); 
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    u := url.URL { Scheme: peer.Scheme, Host: peer.Host, Path: "/" }
-    clientConn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-    if err != nil {
-        log.Fatal("Dial error: ", err)
-    }
-    defer clientConn.Close()
-    defer close(done)
-
-    log.Println("Connected p2p on host: ", peer.Host)
-    serverConnectionSwitch(true)
-
-    go func() {
-        for {
-            _, message, err := clientConn.ReadMessage()
-            if err != nil {
-                log.Println("client read:", err)
-                return
-            }
-            log.Println("Syncing Block: ", string(message))
-        
-            var result map[string]interface{}
-            json.Unmarshal(message, &result)
-            
-            if result["previousHash"] != nil {
-                currentBlock := blockchain.getBlock(blockchain.getBlockHeight())
-                if currentBlock.HashedStr == result["previousHash"] {
-                    var parsedBlock Block
-                    json.Unmarshal(message, &parsedBlock)
-                    blockchain.addBlock(parsedBlock)
-                    if clientConnected {
-                        downMessages <- message
-                    }
-                }
-            }
-        }
-    }()
-
-    for {
-        select {
-        case message := <- upMessages:
-            err := clientConn.WriteMessage(websocket.TextMessage, message)
-            if err != nil {
-                log.Println("client write: ", err)
-                return
-            }
-        case <-interrupt:
-            log.Println("Interrupted!")
-            // Cleanly close the connection by sending a close message and then
-            // waiting (with timeout) for the server to close the connection.
-            err := clientConn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-            if err != nil {
-                log.Println("client write close: ", err)
-            }
+            log.Println("parsing: ", err)
             return
+        }
+        messages <- message
+    }
+}
+
+func parseMessage(message []byte, connected bool, messages chan []byte) {
+    var result map[string]interface{}
+    json.Unmarshal(message, &result)
+    
+    if result["previousHash"] != nil {
+        currentBlock := blockchain.getBlock(blockchain.getBlockHeight())
+        if currentBlock.HashedStr == result["previousHash"] {
+            var parsedBlock Block
+            json.Unmarshal(message, &parsedBlock)
+            blockchain.addBlock(parsedBlock)
+            if connected {
+                messages <- message
+            }
         }
     }
 }

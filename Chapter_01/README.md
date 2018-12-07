@@ -1,4 +1,4 @@
-# Chapter 2: The Blockchain
+# Chapter 1: The Blockchain
 
 > A timestamp server works by taking a hash of a block of items to be timestamped and widely publishing the hash, such as in a newspaper or Usenet post. The timestamp proves that the data must have existed at the time, obviously, in order to get into the hash. Each timestamp includes the previous timestamp in its hash, forming a chain, with each additional timestamp reinforcing the ones before it. - Bitcoin's Whitepaper
 
@@ -45,7 +45,7 @@ Q4. What is the problem with the getAddressBalance function in the Blockchain cl
 
 Its time to add 4 more api endpoints to main.js, ie createTransaction, createBlock, getBlockchain and getBalance.
 
-[Transaction.go](main.go)
+[main.go](main.go)
 
 We broadcast to different nodes when new transactions and blocks are added. In this way, all the nodes are synced. Querying any nodes will return the same results.
 
@@ -65,13 +65,13 @@ $ ./blockchain
 In Terminal 2, start the node
 
 ```
-$ PEER_NO=1 PEERS=ws://localhost:6000 ./blockchain
+$ PEER_NO=1 PEER=ws://localhost:6000 ./blockchain
 ```
 
 In Terminal 3, start the node
 
 ```
-$ PEER_NO=2 PEERS=ws://localhost:6001 ./blockchain
+$ PEER_NO=2 PEER=ws://localhost:6001 ./blockchain
 ```
 
 In Terminal 4, 
