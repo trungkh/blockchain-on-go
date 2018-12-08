@@ -4,6 +4,8 @@ import (
     "crypto/sha256"
     "encoding/hex"
     "encoding/json"
+    "strconv"
+    "time"
 )
 
 type Block struct {
@@ -13,9 +15,9 @@ type Block struct {
     HashedStr    string        `json:"hashedStr"`
 }
 
-func (this *Block) Init(timestamp string, transactions []Transaction, previousHash string) {
+func (this *Block) init(transactions []Transaction, previousHash string) {
     this.PreviousHash = previousHash
-    this.Timestamp = timestamp
+    this.Timestamp = strconv.FormatInt(time.Now().UnixNano(), 10)
     this.Transactions = transactions
     this.HashedStr = this.calculateHash()
 }

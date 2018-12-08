@@ -79,8 +79,6 @@ func (this *P2pClient) readPump() {
             log.Println("client read:", err)
             break
         }
-        log.Println("Syncing Block: ", string(message))
-    
         parseMessage(message, this.server.getConnection(), this.server.messages)
     }
 }

@@ -12,16 +12,18 @@ type Blockchain struct {
     pendingTransactions []Transaction
 }
 
-func (this *Blockchain) Init() {
-    mutex.Lock()
-    this.chain = append(this.chain, *this.createGenesisBlock())
-    mutex.Unlock()
+func (this *Blockchain) init(genesis bool) {
+    if genesis {
+        mutex.Lock()
+        this.chain = append(this.chain, *this.createGenesisBlock())
+        mutex.Unlock()
+    }
     this.pendingTransactions = nil
 }
 
 func (this Blockchain) createGenesisBlock() *Block {
     block := new(Block)
-    block.Init("this_is_genesis_address", nil, "0")
+    block.init(nil, "0")
     return block
 }
 

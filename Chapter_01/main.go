@@ -26,15 +26,16 @@ func main() {
         log.Fatal(err)
     }
 
-    blockchain.Init()
-    go runWebService()
-
-    go p2pServer.init(&p2pClient)
-
     peers := os.Getenv("PEER")
     if peers != "" {
+        blockchain.init(false)
         go p2pClient.init(peers, &p2pServer)
+    } else {
+        blockchain.init(true)
     }
+    go p2pServer.init(&p2pClient)
+    go runWebService()
+
     for {
         select {
         case <-interrupt:
@@ -128,7 +129,8 @@ func handleCreateTransaction(w http.ResponseWriter, r *http.Request) {
 func handleCreateBlock(w http.ResponseWriter, r *http.Request) {
     if len(blockchain.getPendingTransactions()) > 0 {
         block := new(Block)
-        block.Init(time.Now().Format("20060102150405"), blockchain.getPendingTransactions(), blockchain.getBlock(blockchain.getBlockHeight()).HashedStr)
+        block.init(blockchain.getPendingTransactions(),
+                    blockchain.getBlock(blockchain.getBlockHeight()).HashedStr)
         blockchain.addBlock(*block)
 
         bytes, err := json.MarshalIndent(block, "", "  ")
@@ -170,7 +172,7 @@ func handleGetBalance(w http.ResponseWriter, r *http.Request) {
 }
 
 func nodeSync(messages chan []byte) {
-    for _, block := range blockchain.getBlockchain()[1:] {
+    for _, block := range blockchain.getBlockchain() {
         message, err := json.MarshalIndent(block, "", "  ")
         if err != nil {
             log.Println("parsing: ", err)
@@ -184,15 +186,21 @@ func parseMessage(message []byte, connected bool, messages chan []byte) {
     var result map[string]interface{}
     json.Unmarshal(message, &result)
     
-    if result["previousHash"] != nil {
-        currentBlock := blockchain.getBlock(blockchain.getBlockHeight())
-        if currentBlock.HashedStr == result["previousHash"] {
-            var parsedBlock Block
-            json.Unmarshal(message, &parsedBlock)
-            blockchain.addBlock(parsedBlock)
-            if connected {
-                messages <- message
-            }
-        }
+    if result["previousHash"] == nil {
+        return
+    }
+
+    if currentHeight := blockchain.getBlockHeight(); currentHeight >= 0 &&
+        blockchain.getBlock(currentHeight).HashedStr != result["previousHash"] {
+        return
+    }
+
+    log.Println("Syncing Block: ", string(message))
+
+    var parsedBlock Block
+    json.Unmarshal(message, &parsedBlock)
+    blockchain.addBlock(parsedBlock)
+    if connected {
+        messages <- message
     }
 }

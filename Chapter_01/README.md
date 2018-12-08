@@ -43,7 +43,7 @@ Q3. Why is there a need for pendingTransactions?
 
 Q4. What is the problem with the getAddressBalance function in the Blockchain class?
 
-Its time to add 4 more api endpoints to main.js, ie createTransaction, createBlock, getBlockchain and getBalance.
+Its time to add 4 more api endpoints to main.go, ie createTransaction, createBlock, getBlockchain and getBalance.
 
 [main.go](main.go)
 
