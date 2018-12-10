@@ -14,9 +14,9 @@ import (
     "github.com/joho/godotenv"
 )
 
-var blockchain = Blockchain{}
 var p2pServer = P2pServer{}
 var p2pClient = P2pClient{}
+var blockchain = Blockchain{}
 
 func main() {
     interrupt := make(chan os.Signal, 1)
@@ -40,17 +40,17 @@ func main() {
         select {
         case <-interrupt:
             log.Println("Interrupted!")
-            if !p2pClient.getConnection() && !p2pServer.getConnection() {
+            if !p2pClient.getConnection() && p2pServer.numberOfClient() == 0 {
                 return
             }
             if p2pClient.getConnection() {
                 close(p2pClient.messages)
             }
-            if p2pServer.getConnection() {
-                close(p2pServer.messages)
+            if p2pServer.numberOfClient() > 0 {
+                close(p2pServer.broadcast)
             }
         case <-p2pClient.done:
-            if !p2pServer.getConnection() {
+            if p2pServer.numberOfClient() == 0 {
                 return
             }
         case <-p2pServer.done:
@@ -140,8 +140,8 @@ func handleCreateBlock(w http.ResponseWriter, r *http.Request) {
         }
         log.Println("Created Block: ", string(bytes))
 
-        if p2pServer.getConnection() {
-            p2pServer.messages <- bytes
+        if p2pServer.numberOfClient() > 0 {
+            p2pServer.broadcast <- bytes
         }
         if p2pClient.getConnection() {
             p2pClient.messages <- bytes
@@ -182,17 +182,17 @@ func nodeSync(messages chan []byte) {
     }
 }
 
-func parseMessage(message []byte, connected bool, messages chan []byte) {
+func parseMessage(message []byte) bool {
     var result map[string]interface{}
     json.Unmarshal(message, &result)
     
     if result["previousHash"] == nil {
-        return
+        return false
     }
 
     if currentHeight := blockchain.getBlockHeight(); currentHeight >= 0 &&
         blockchain.getBlock(currentHeight).HashedStr != result["previousHash"] {
-        return
+        return false
     }
 
     log.Println("Syncing Block: ", string(message))
@@ -200,7 +200,5 @@ func parseMessage(message []byte, connected bool, messages chan []byte) {
     var parsedBlock Block
     json.Unmarshal(message, &parsedBlock)
     blockchain.addBlock(parsedBlock)
-    if connected {
-        messages <- message
-    }
+    return true
 }

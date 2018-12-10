@@ -10,11 +10,18 @@ import (
 )
 
 type P2pServer struct {
-    ws *websocket.Conn
-    messages chan []byte
-    connected bool
+    // Registered clients
+    clients map[*Client]bool
 
-    client *P2pClient
+    // Unregister requests
+    unregister chan *Client
+
+    // Inbound messages
+    broadcast chan []byte
+
+    // p2p client connection
+    p2pClient *P2pClient
+
     done chan struct{}
 }
 
@@ -34,7 +41,15 @@ func (this *P2pServer) init(client *P2pClient) {
         }
         wsPort = strconv.Itoa(w + p)
     }
-    this.client = client
+    this.clients = make(map[*Client]bool)
+    this.unregister = make(chan *Client)
+    this.broadcast = make(chan []byte)
+    this.p2pClient = client
+    this.done = make(chan struct{})
+
+    var oops bool = false
+    go this.unregisterHandler(&oops)
+    go this.broadcastHandler(&oops)
 
     log.Println("Listening websocket p2p on port: ", wsPort)
     if err := http.ListenAndServe(/*addr*/":" + wsPort, nil); err != nil {
@@ -48,66 +63,62 @@ func (this *P2pServer) handleMessage(w http.ResponseWriter, r *http.Request) {
         log.Println("upgrade: ", err)
         return
     }
-    this.ws = conn
-    this.messages = make(chan []byte)
-    this.done = make(chan struct{})
 
+    client := &Client{
+        ws: conn,
+        messages: make(chan []byte),
+        hub: this,
+        connected: true,
+    }
+    
+    // Register requests
+    this.clients[client] = true
     log.Println("Connnection established...")
-    this.setConnection(true)
 
-    go this.writePump()
-    go nodeSync(this.messages)
-    this.readPump()
+    go client.writePump()
+    go nodeSync(client.messages)
+    client.readPump()
 }
 
-func (this *P2pServer) writePump() {
-    defer func() {
-        this.setConnection(false)
-        this.ws.Close()
+func (this *P2pServer) unregisterHandler(oops *bool) {
+    defer func () {
+        close(this.unregister)
         close(this.done)
     }()
 
     for {
         select {
-        case message, ok := <- this.messages:
+        case client := <-this.unregister:
+            _, ok := this.clients[client]
+            if ok {
+                delete(this.clients, client)
+            }
+            if this.numberOfClient() == 0 && *oops {
+                return
+            }
+        }
+    }
+}
+
+func (this *P2pServer) broadcastHandler(oops *bool) {
+    for {
+        select {
+        case message, ok := <-this.broadcast:
             if !ok {
                 log.Println("server closing...")
-                err := this.ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-                if err != nil {
-                    log.Println("server close: ", err)
+                for client := range this.clients {
+                    close(client.messages)
                 }
+                *oops = true
                 return
-            }
-            err := this.ws.WriteMessage(websocket.TextMessage, message)
-            if err != nil {
-                log.Println("server write: ", err)
-                return
+            } 
+            for client := range this.clients {
+                client.messages <- message
             }
         }
     }
 }
 
-func (this *P2pServer) readPump() {
-    defer func() {
-        if this.getConnection() {
-            close(this.messages)
-        }
-    }()
-
-    for {
-        _, message, err := this.ws.ReadMessage()
-        if err != nil {
-            log.Println("server read: ", err)
-            break
-        }
-        parseMessage(message, this.client.getConnection(), this.client.messages)
-    }
-}
-
-func (this *P2pServer) setConnection(status bool) {
-    this.connected = status
-}
-
-func (this *P2pServer) getConnection() bool {
-    return this.connected
+func (this *P2pServer) numberOfClient() int {
+    return len(this.clients)
 }
