@@ -34,6 +34,9 @@ func main() {
     } else {
         blockchain.init(true)
     }
+    blockchain.setDifficulty(3)
+    blockchain.setMiningReward(12.5)
+
     go p2pServer.init(&p2pClient)
     go runWebService()
 
@@ -67,7 +70,7 @@ func runWebService() {
     router := mux.NewRouter()
     router.HandleFunc("/ping", handlePing).Methods("GET")
     router.HandleFunc("/createTransaction", handleCreateTransaction).Methods("POST")
-    router.HandleFunc("/createBlock", handleCreateBlock).Methods("GET")
+    router.HandleFunc("/mineBlock", handleMineBlock).Methods("POST")
     router.HandleFunc("/getBlockchain", handleGetBlockchain).Methods("GET")
     router.HandleFunc("/getBalance/{address}", handleGetBalance).Methods("GET")
 
@@ -128,12 +131,22 @@ func handleCreateTransaction(w http.ResponseWriter, r *http.Request) {
     w.Write([]byte("Current pending transactions: " + string(bytes) + "\n"))
 }
 
-func handleCreateBlock(w http.ResponseWriter, r *http.Request) {
+func handleMineBlock(w http.ResponseWriter, r *http.Request) {
     if len(blockchain.getPendingTransactions()) > 0 {
-        block := new(Block)
-        block.init(blockchain.getPendingTransactions(),
-                    blockchain.getBlock(blockchain.getBlockHeight()).HashedStr)
-        blockchain.addBlock(*block)
+        var result map[string]interface{}
+
+        if err := json.NewDecoder(r.Body).Decode(&result); err != nil {
+            http.Error(w, err.Error(), http.StatusBadRequest)
+            return
+        }
+        
+        if result["minerAddress"] == nil {
+            w.WriteHeader(http.StatusBadRequest)
+            w.Write([]byte("Miner's address is NULL\n"))
+            return
+        }
+        
+        block := blockchain.mineBlock(result["minerAddress"].(string))
 
         bytes, err := json.MarshalIndent(block, "", "  ")
         if err != nil {
@@ -198,10 +211,15 @@ func parseMessage(message []byte) bool {
         }
     }
 
-    log.Println("Syncing Block: ", string(message))
-
+    // Consensus action to verify result from the source node 
     var block Block
     json.Unmarshal(message, &block)
+    if block.HashedStr != block.calculateHash() {
+        return false
+    }
+
+    log.Println("Syncing Block: ", string(message))
+
     blockchain.addBlock(block)
     return true
 }

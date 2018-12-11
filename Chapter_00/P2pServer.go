@@ -5,6 +5,7 @@ import (
     "net/http"
     "os"
     "strconv"
+    "unsafe"
 
     "github.com/gorilla/websocket"
 )
@@ -76,8 +77,6 @@ func (this *P2pServer) handleMessage(w http.ResponseWriter, r *http.Request) {
     log.Println("Connnection established...")
 
     go client.writePump()
-    // Syncing entire ledger if any node connected to this node
-    go nodeSync(client.messages)
     client.readPump()
 }
 
@@ -112,8 +111,13 @@ func (this *P2pServer) broadcastHandler(oops *bool) {
                 }
                 *oops = true
                 return
-            } 
+            }
+
+            c := (*Client)(unsafe.Pointer(convertBytesToPointer(message[:unsafe.Sizeof(this)])))
             for client := range this.clients {
+                if client == c {
+                    continue
+                }
                 client.messages <- message
             }
         }

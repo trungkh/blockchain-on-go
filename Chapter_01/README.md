@@ -89,8 +89,8 @@ $ curl http://localhost:3001/getBlockchain
 $ curl http://localhost:3000/getBlockchain
 
 # get the balance of alice and bob from node 1. What values did you get?
-$ curl http://localhost:3001/getBalance/alice
-$ curl http://localhost:3001/getBalance/bob
+$ curl http://localhost:3000/getBalance/alice
+$ curl http://localhost:3000/getBalance/bob
 ```
 
 Q5. Did you see any problems with alice sending 40 tokens to bob? How do we fix it? (ungraded)
