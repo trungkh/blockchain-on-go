@@ -1,6 +1,7 @@
 package main
 
 import (
+    "encoding/binary"
     "log"
     "net/http"
     "os"
@@ -68,8 +69,8 @@ func (this *P2pServer) handleMessage(w http.ResponseWriter, r *http.Request) {
     client := &Client{
         ws: conn,
         messages: make(chan []byte),
-        hub: this,
         connected: true,
+        hub: this,
     }
     
     // Register requests
@@ -113,12 +114,15 @@ func (this *P2pServer) broadcastHandler(oops *bool) {
                 return
             }
 
-            c := (*Client)(unsafe.Pointer(convertBytesToPointer(message[:unsafe.Sizeof(this)])))
+            size := unsafe.Sizeof((*byte)(nil))
+            ptr := this.convertToPointer(message[:size])
+            c := (*Client)(unsafe.Pointer(ptr))
             for client := range this.clients {
+                // Prevent loop back sending to client
                 if client == c {
                     continue
                 }
-                client.messages <- message
+                client.messages <- message[size:]
             }
         }
     }
@@ -126,4 +130,16 @@ func (this *P2pServer) broadcastHandler(oops *bool) {
 
 func (this *P2pServer) numberOfClient() int {
     return len(this.clients)
+}
+
+// Convert byte slice to pointer
+func (this *P2pServer) convertToPointer(bytes []byte) uintptr {
+    var ptr uintptr
+    switch len(bytes) {
+    case 4:
+        ptr = uintptr(binary.LittleEndian.Uint32(bytes))
+    case 8:
+        ptr = uintptr(binary.LittleEndian.Uint64(bytes))
+    }
+    return ptr
 }

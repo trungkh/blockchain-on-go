@@ -9,6 +9,7 @@ import (
     "os/signal"
     "strconv"
     "time"
+    "unsafe"
 
     //"github.com/davecgh/go-spew/spew"
     "github.com/gorilla/mux"
@@ -102,9 +103,18 @@ func runWebService() {
 }
 
 func handlePing(w http.ResponseWriter, r *http.Request) {
-    bytes := []byte("I'm alive!\n")
-    log.Print(string(bytes))
-    w.Write(bytes)
+    message := []byte("I'm alive!\n")
+    log.Print(string(message))
+
+    if p2pServer.numberOfClient() > 0 {
+        bytes := make([]byte, unsafe.Sizeof((*byte)(nil)))
+        p2pServer.broadcast <- append(bytes, message...)
+    }
+    if p2pClient.getConnection() {
+        p2pClient.messages <- message
+    }
+
+    w.Write(message)
 }
 
 func handleCreateTransaction(w http.ResponseWriter, r *http.Request) {
@@ -148,25 +158,26 @@ func handleMineBlock(w http.ResponseWriter, r *http.Request) {
         
         block := blockchain.mineBlock(result["minerAddress"].(string))
 
-        bytes, err := json.MarshalIndent(block, "", "  ")
+        message, err := json.MarshalIndent(block, "", "  ")
         if err != nil {
             http.Error(w, err.Error(), http.StatusInternalServerError)
             return
         }
-        log.Println("Created Block: ", string(bytes))
+        log.Println("Created Block: ", string(message))
 
         if p2pServer.numberOfClient() > 0 {
-            p2pServer.broadcast <- bytes
+            bytes := make([]byte, unsafe.Sizeof((*byte)(nil)))
+            p2pServer.broadcast <- append(bytes, message...)
         }
         if p2pClient.getConnection() {
-            p2pClient.messages <- bytes
+            p2pClient.messages <- message
         }
 
         w.WriteHeader(http.StatusCreated)
-        w.Write([]byte("New block created: " + string(bytes) + "\n"))
+        w.Write([]byte("New block created: " + string(message) + "\n"))
     } else {
         w.WriteHeader(http.StatusBadRequest)
-        w.Write([]byte("Cannot create empty block\n"))
+        w.Write([]byte("No transaction to execute\n"))
     }
 }
 
@@ -198,6 +209,11 @@ func nodeSync(messages chan []byte) {
 }
 
 func parseMessage(message []byte) bool {
+    if string(message) == "I'm alive!\n" {
+        log.Print(string(message))
+        return true
+    }
+
     var result map[string]interface{}
     json.Unmarshal(message, &result)
     

@@ -1,7 +1,10 @@
 package main
 
 import (
+    "encoding/binary"
     "log"
+    "reflect"
+    "unsafe"
 
     "github.com/gorilla/websocket"
 )
@@ -58,7 +61,13 @@ func (this *Client) readPump() {
             if this.hub.p2pClient.getConnection() {
                 this.hub.p2pClient.messages <- message
             }
-            this.hub.broadcast <- message
+
+            // In order to prevent loop back receiving this message,
+            // client should add more 8 or 4 bytes (depends on OS architect)
+            // into this message itself pointer, that hub server can
+            // recognize which one not get back the message
+            bytes := this.convertToBytes()
+            this.hub.broadcast <- append(bytes, message...)
         }
     }
 }
@@ -67,6 +76,20 @@ func (this *Client) setConnection(status bool) {
     this.connected = status
 }
 
-func (this Client) getConnection() bool {
+func (this *Client) getConnection() bool {
     return this.connected
+}
+
+// Convert a pointer to byte slice
+func (this *Client) convertToBytes() []byte {
+    ptr := reflect.ValueOf(this).Pointer()
+    size := unsafe.Sizeof(ptr)
+    bytes := make([]byte, size)
+    switch size {
+    case 4:
+            binary.LittleEndian.PutUint32(bytes, uint32(ptr))
+    case 8:
+            binary.LittleEndian.PutUint64(bytes, uint64(ptr))
+    }
+    return bytes
 }

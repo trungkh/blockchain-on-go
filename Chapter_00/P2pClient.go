@@ -3,6 +3,7 @@ package main
 import (
     "log"
     "net/url"
+    "unsafe"
 
     "github.com/gorilla/websocket"
 )
@@ -80,7 +81,8 @@ func (this *P2pClient) readPump() {
             break
         }
         if parseMessage(message) {
-            this.hub.broadcast <- append([]byte{0,0,0,0,0,0,0,0}, message...)
+            bytes := make([]byte, unsafe.Sizeof((*byte)(nil)))
+            this.hub.broadcast <- append(bytes, message...)
         }
     }
 }

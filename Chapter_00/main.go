@@ -1,7 +1,6 @@
 package main
 
 import (
-    "encoding/binary"
     "log"
     "net/http"
     "os"
@@ -90,44 +89,21 @@ func runWebService() {
 }
 
 func handlePing(w http.ResponseWriter, r *http.Request) {
-    bytes := []byte("I'm alive!\n")
-    log.Print(string(bytes))
+    message := []byte("I'm alive!\n")
+    log.Print(string(message))
 
     if p2pServer.numberOfClient() > 0 {
-        p2pServer.broadcast <- bytes
+        bytes := make([]byte, unsafe.Sizeof((*byte)(nil)))
+        p2pServer.broadcast <- append(bytes, message...)
     }
     if p2pClient.getConnection() {
-        p2pClient.messages <- bytes
+        p2pClient.messages <- message
     }
 
-    w.Write(bytes)
+    w.Write(message)
 }
 
 func parseMessage(message []byte) bool {
     log.Print(string(message))
     return true
-}
-
-func convertPointerToBytes(ptr uintptr) []byte {
-    size := unsafe.Sizeof(ptr)
-    bytes := make([]byte, size)
-    switch size {
-    case 4:
-            binary.LittleEndian.PutUint32(bytes, uint32(ptr))
-    case 8:
-            binary.LittleEndian.PutUint64(bytes, uint64(ptr))
-    }
-    return bytes
-}
-
-func convertBytesToPointer(bytes []byte) uintptr {
-    var ptr uintptr
-    size := unsafe.Sizeof(ptr)
-    switch size {
-    case 4:
-        ptr = uintptr(binary.LittleEndian.Uint32(bytes))
-    case 8:
-        ptr = uintptr(binary.LittleEndian.Uint64(bytes))
-    }
-    return ptr
 }
