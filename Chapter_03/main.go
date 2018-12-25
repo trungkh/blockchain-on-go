@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/hex"
+    "encoding/hex"
     "encoding/json"
     "flag"
     "fmt"
@@ -129,7 +129,7 @@ func handleCreateTransaction(w http.ResponseWriter, r *http.Request) {
     }
 
     // check balance
-    if (blockchain.getAddressBalance(result["fromAddress"].(string)) - float32(result["value"].(float64)) < 0) {
+    if blockchain.getAddressBalance(result["fromAddress"].(string)) - float32(result["value"].(float64)) < 0 {
         w.WriteHeader(http.StatusBadRequest)
         w.Write([]byte("Not enough funds!\n"))
         return
@@ -146,10 +146,10 @@ func handleCreateTransaction(w http.ResponseWriter, r *http.Request) {
 
     // if the signer is an owner of the address, we insert it in the pending tx queue
     pubByte, _ := hex.DecodeString(tx.FromAddress)
-    if (wallet.verifySignature([]byte(tx.HashedStr), sign, pubByte)) {
+    if wallet.verifySignature([]byte(tx.HashedStr), sign, pubByte) {
 
         blockchain.createTransaction(*tx)
-        bytes, err := json.Marshal(blockchain.getPendingTransactions())
+        bytes, err := json.MarshalIndent(blockchain.getPendingTransactions(), "", "  ")
         if err != nil {
             http.Error(w, err.Error(), http.StatusInternalServerError)
             return

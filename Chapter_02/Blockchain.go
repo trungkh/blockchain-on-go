@@ -45,7 +45,7 @@ func (this *Blockchain) mineBlock(minerAddress string) Block {
     }
     this.pendingTransactions = append([]Transaction{tx}, this.pendingTransactions...)
 
-    // create new block based on hardcoded timestamp, all pending tx and previous blockhash
+    // create new block based on all pending tx and previous blockhash
     block := new(Block)
     block.init(this.getPendingTransactions(),
                 this.getBlock(this.getBlockHeight()).HashedStr)

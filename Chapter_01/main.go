@@ -128,7 +128,7 @@ func handleCreateTransaction(w http.ResponseWriter, r *http.Request) {
     }
 
     blockchain.createTransaction(tx)
-    bytes, err := json.Marshal(blockchain.getPendingTransactions())
+    bytes, err := json.MarshalIndent(blockchain.getPendingTransactions(), "", "  ")
     if err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
         return

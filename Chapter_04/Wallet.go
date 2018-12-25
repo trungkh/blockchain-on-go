@@ -4,9 +4,6 @@ import (
     "crypto/ecdsa"
     "crypto/elliptic"
     "crypto/rand"
-    //"crypto/sha1"
-    //"encoding/asn1"
-    //"encoding/hex"
     "log"
 
     "math/big"
@@ -84,40 +81,3 @@ func (this *Wallet) verifySignature(message []byte, signature []byte, publicKey 
 
     return ecdsa.Verify(pubKey, message, r, s)
 }
-
-/*func (this Wallet) testSigning() {
-    privByte, _ := hex.DecodeString("9bda80432dbd72a7a20f9411fb9fb5c4cee2021ffe7d869f6199878606cadf45")
-    log.Printf("Private Key: %x", privByte)
-    sigByte := this.sign([]byte("hello"), privByte)
-    log.Printf("Signature:   %x", sigByte)
-
-    pubByte, _ := hex.DecodeString("4b83487732a84f3963bd20f61341a1a69fd9d5db6be47d0f9d92015baf8848b3beb0c447ed24b7e0b5adc310da9b6cc5f482c53bf04508f72dd7cd4818006906")
-    ok := this.verifySignature([]byte("hello"), sigByte, pubByte)
-    log.Println(ok)
-}
-
-func (this *Wallet) _sign(message []byte, privateKey []byte) []byte {
-    digest := sha1.Sum(message)
-    priv := this.bytesToPrivateKey(privateKey)
-
-    var esig struct { R, S *big.Int }
-    esig.R, esig.S, _ = ecdsa.Sign(rand.Reader, priv, digest[:])
-    log.Printf("R: %x", esig.R)
-    log.Printf("S: %x", esig.S)
-
-    signature, _ := asn1.Marshal(esig)
-    return signature
-}
-
-func (this *Wallet) _verifySignature(message []byte, signature []byte, publicKey []byte) bool {
-    digest := sha1.Sum(message)
- 
-    var esig struct { R, S *big.Int }
-    asn1.Unmarshal(signature, &esig)
-    log.Printf("R: %x", esig.R)
-    log.Printf("S: %x", esig.S)
-
-    pubKey := this.bytesToPublicKey(publicKey)
-
-    return ecdsa.Verify(pubKey, digest[:], esig.R, esig.S)
-}*/
