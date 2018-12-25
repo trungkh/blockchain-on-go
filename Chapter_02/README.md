@@ -12,7 +12,7 @@ Proof of Work is about using computing power to find a cryptographic solution (a
 
 In Bitcoin, the right hash is one with a specific number of zeros prefixing it. The difficulty property defines how many prefixing zeros the hash must have.
 
-Q1. Write a mineBlock function that accepts a difficulty parameter in the Block class. this.hash must also be guaranteed unique.
+Q1. Write a mineBlock function that accepts a difficulty parameter in the Block struct. this.hash must also be guaranteed unique.
 
 [Block.go](Block.go)
 

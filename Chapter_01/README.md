@@ -29,11 +29,11 @@ Now lets create a simple Transaction object.
 
 Each Transaction records who is sending how much to who. This is a simple Account Based Transaction Model that scans through the chain to get the balance.
 
-Q2. Do you see a problem with the Transaction class?
+Q2. Do you see a problem with the Transaction struct?
 
 ## The Chain
 
-Now, the actual Blockchain class.
+Now, the actual Blockchain struct.
 
 [Blockchain.go](Transaction.go)
 
@@ -41,7 +41,7 @@ The actual implementation of the chain is quite simple. Its basically an increme
 
 Q3. Why is there a need for pendingTransactions?
 
-Q4. What is the problem with the getAddressBalance function in the Blockchain class?
+Q4. What is the problem with the getAddressBalance function in the Blockchain struct?
 
 Its time to add 4 more api endpoints to main.go, ie createTransaction, createBlock, getBlockchain and getBalance.
 
