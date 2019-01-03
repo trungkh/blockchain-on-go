@@ -35,7 +35,7 @@ Q2. Do you see a problem with the Transaction struct?
 
 Now, the actual Blockchain struct.
 
-[Blockchain.go](Transaction.go)
+[Blockchain.go](Blockchain.go)
 
 The actual implementation of the chain is quite simple. Its basically an incremental insert-only array of the Blocks object.
 

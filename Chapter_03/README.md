@@ -138,8 +138,6 @@ curl http://localhost:3000/getBalance/5a51771e00a504d488f74431ac9852dca16c986aa7
 curl http://localhost:3000/getBalance/2466503911b6ac3db8d98642687754b151a1d016d6dbe565d463719b034d1731820027e2b1c0e54d16ddd9eb8df44ba788140920b0ebbd46096d5363c5826031
 ```
 
-Tip: Remember to commit your code before moving on to the next chapter.
-
 ## Short Quiz
 
 ? Which of the following option is the safest way to prevent your private keys being stolen?
