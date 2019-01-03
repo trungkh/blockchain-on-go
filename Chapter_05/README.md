@@ -92,30 +92,43 @@ in [Blockchain.go](Blockchain.go)
         ...
     }
 
-    static runSmartContract(block) {
-        // lets try to execute all the javascript in the outputs in the mined block
-        for(let i=0; i < block.transactions.length; i++) {
-            for(let j=0; j < block.transactions[i].txOut.length; j++) {
-                let matched = block.transactions[i].txOut[j].data.match(/<mycoin>(.*?)<\/mycoin>/g)
-                if (matched) {
-                    matched.map(function(val){
-                        // strip tags
-                        val = val.replace(/<\/?[^>]+(>|$)/g, "")
-                        eval(val)
-                    })
+    func (this Blockchain) runSmartContract(block *Block) error {
+        // lets try to execute script in the outputs in the mined block
+        for _, tx := range block.Transactions {
+            for _, txOut := range tx.TxOut {
+
+                matched, _ := regexp.MatchString(`<mycoin>(.*?)</mycoin>`, txOut.Data)
+                if !matched {
+                    continue
                 }
+
+                reg, err := regexp.Compile(`<mycoin>(.*?)</mycoin>`)
+                if err != nil {
+                    return err
+                }
+                data := reg.ReplaceAllString(txOut.Data, "${1}")
+
+                expr, err := eval.ParseString(data,"")
+                if err != nil{
+                    return err
+                }
+                r, err := expr.EvalToInterface(nil)
+                if err != nil {
+                    return err
+                }
+                log.Println(r)
             }
         }
-        return block
+        return nil
     }
 ```
 
-Q1. In the mineBlock function, is it ok to run `block = Blockchain.runSmartContract(block)` after `block.mineBlock(this.difficulty)` ?
+Q1. In the mineBlock function, is it ok to run `this.runSmartContract(block)` after `block.mineBlock(this.difficulty)` ?
 
-With mycoin scripting supported, we have godly powers. Let's just say everyone agrees that the miner is getting too much reward. We want to overwrite the system and reduce his their reward from 12.5 to 0.2. We can inject the following script in the data field.
+With mycoin scripting supported, we just doing simple things that can demo for this article, not complicated computing as same as other turing complete programming languages. For example, calculate an expression below
 
 ```
-<mycoin>block.transactions[0].txOut[0].value=0.2</mycoin>
+<mycoin>1 + 1</mycoin>
 ```
 
 Its time to try it out.
@@ -162,7 +175,7 @@ In Terminal 4,
 
 ```
 # Alice send 31 coins to bob in Node 3 with a twist in the data field. In terminal 4
-curl -H "Content-type:application/json" --data '{"fromAddress" :"4b83487732a84f3963bd20f61341a1a69fd9d5db6be47d0f9d92015baf8848b3beb0c447ed24b7e0b5adc310da9b6cc5f482c53bf04508f72dd7cd4818006906", "toAddress": "5a51771e00a504d488f74431ac9852dca16c986aa7abbca3c2a0a62e8051062cf8db388015aae7b30585ad4a4f5510a7936aa216bde10dc7884db245ceeecca0", "value": 31, "data": "txOut.Value=5", "privKey": "9bda80432dbd72a7a20f9411fb9fb5c4cee2021ffe7d869f6199878606cadf45"}' http://localhost:3002/createTransaction
+curl -H "Content-type:application/json" --data '{"fromAddress" :"4b83487732a84f3963bd20f61341a1a69fd9d5db6be47d0f9d92015baf8848b3beb0c447ed24b7e0b5adc310da9b6cc5f482c53bf04508f72dd7cd4818006906", "toAddress": "5a51771e00a504d488f74431ac9852dca16c986aa7abbca3c2a0a62e8051062cf8db388015aae7b30585ad4a4f5510a7936aa216bde10dc7884db245ceeecca0", "value": 31, "data": "<mycoin>1+1</mycoin>", "privKey": "9bda80432dbd72a7a20f9411fb9fb5c4cee2021ffe7d869f6199878606cadf45"}' http://localhost:3002/createTransaction
 
 # Node 3 now mines a block. In terminal 4,
 curl -H "Content-type:application/json" --data '{"minerAddress":"2466503911b6ac3db8d98642687754b151a1d016d6dbe565d463719b034d1731820027e2b1c0e54d16ddd9eb8df44ba788140920b0ebbd46096d5363c5826031"}' http://localhost:3002/mineBlock
@@ -173,7 +186,7 @@ curl http://localhost:3000/getBalance/4b83487732a84f3963bd20f61341a1a69fd9d5db6b
 # Bob balance. It should be 31
 curl http://localhost:3000/getBalance/5a51771e00a504d488f74431ac9852dca16c986aa7abbca3c2a0a62e8051062cf8db388015aae7b30585ad4a4f5510a7936aa216bde10dc7884db245ceeecca0
 
-# miner balance. It should be 0.2
+# miner balance. It should be 12.5
 curl http://localhost:3000/getBalance/2466503911b6ac3db8d98642687754b151a1d016d6dbe565d463719b034d1731820027e2b1c0e54d16ddd9eb8df44ba788140920b0ebbd46096d5363c5826031
 
 # check the chain in all the nodes. They should be the same
